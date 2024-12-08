@@ -1,0 +1,44 @@
+@startuml
+
+actor "Operator" as operator
+
+participant "MES" as mes
+participant "MES API" as mesapi
+participant "MES DB" as mesdb
+
+participant "Cache" as cache
+participant "RabbitMQ" as rabbitMQ
+
+participant "CRM API" as crmapi
+participant "Shop DB" as shodb
+
+== операция чтения списка заказов ==
+
+operator -> mes : запрос списка заказов 
+mes -> mesapi : запрос на получение списка заказов 
+mesapi -> cache : получение данных из кэша
+
+alt cache hit
+    cache -> mesapi : возврат данных из кэша
+else cache miss    
+    mesapi -> rabbitMQ : запрос в очередь на запрос данных
+    rabbitMQ -> crmapi : запрос данных
+    crmapi -> shodb : запрос данных из БД
+    shodb -> crmapi : данные из БД
+    crmapi -> rabbitMQ : отправка данных в очередь
+    crmapi -> cache : запись данных в кэш
+    rabbitMQ -> mesapi : забор данных из очереди      
+end
+mesapi -> mes : возврат данных  
+mes -> operator : отображение списка заказов
+
+== запись об изменении статуса заказа ==
+
+operator -> mes : запрос на изменение статуса заказа
+mes -> mesapi : обновление статуса
+mesapi -> rabbitMQ : запрос в очередь на обновление данных
+rabbitMQ -> crmapi : запрос на обновление данных
+crmapi -> shodb : запрос на обновление данных в БД
+crmapi -> cache : обновление данных в кэше
+
+@enduml
